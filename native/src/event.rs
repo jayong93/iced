@@ -23,6 +23,8 @@ pub enum Event {
 
     /// A touch event
     Touch(touch::Event),
+    /// A raw device event
+    Raw(crate::device::Event),
 }
 
 /// The status of an [`Event`] after being processed.

@@ -14,8 +14,8 @@ use iced_futures::futures;
 use iced_futures::futures::channel::mpsc;
 use iced_graphics::window;
 use iced_native::program::Program;
+use iced_native::{device, keyboard, Event};
 use iced_native::{Cache, UserInterface};
-
 use std::mem::ManuallyDrop;
 
 /// An interactive, native cross-platform application.
@@ -349,6 +349,37 @@ async fn run_instance<A, E, C>(
                     state.modifiers(),
                 ) {
                     events.push(event);
+                }
+            }
+            event::Event::DeviceEvent {
+                device_id: _id,
+                event,
+            } => {
+                use winit::event::DeviceEvent;
+                match event {
+                    DeviceEvent::MouseMotion { delta: (x, y) } => {
+                        let event = Event::Raw(device::Event::MouseMotion(
+                            x as _, y as _,
+                        ));
+                        events.push(event);
+                    }
+                    DeviceEvent::Key(input)
+                        if input.state
+                            == winit::event::ElementState::Pressed =>
+                    {
+                        let event = Event::Raw(device::Event::KeyInput(
+                            keyboard::Event::KeyPressed {
+                                key_code: conversion::key_code(
+                                    input.virtual_keycode.unwrap(),
+                                ),
+                                modifiers: conversion::modifiers(
+                                    input.modifiers,
+                                ),
+                            },
+                        ));
+                        events.push(event);
+                    }
+                    _ => {}
                 }
             }
             _ => {}

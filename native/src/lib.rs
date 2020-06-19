@@ -44,6 +44,7 @@ pub mod subscription;
 pub mod touch;
 pub mod widget;
 pub mod window;
+pub mod device;
 
 mod clipboard;
 mod element;
