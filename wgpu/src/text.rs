@@ -19,6 +19,7 @@ impl Pipeline {
         let default_font = default_font.map(|slice| slice.to_vec());
 
         // TODO: Font customization
+        #[cfg(not(target_os = "ios"))]
         #[cfg(feature = "default_system_font")]
         let default_font = {
             default_font.or_else(|| {
@@ -65,6 +66,7 @@ impl Pipeline {
     pub fn draw_queued(
         &mut self,
         device: &wgpu::Device,
+        staging_belt: &mut wgpu::util::StagingBelt,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         transformation: Transformation,
@@ -74,6 +76,7 @@ impl Pipeline {
             .borrow_mut()
             .draw_queued_with_transform_and_scissoring(
                 device,
+                staging_belt,
                 encoder,
                 target,
                 transformation.into(),

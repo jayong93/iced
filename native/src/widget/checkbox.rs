@@ -1,10 +1,15 @@
 //! Show toggle controls using checkboxes.
 use std::hash::Hash;
 
+use crate::event::{self, Event};
+use crate::layout;
+use crate::mouse;
+use crate::row;
+use crate::text;
+use crate::touch;
 use crate::{
-    layout, mouse, row, text, Align, Clipboard, Element, Event, Hasher,
-    HorizontalAlignment, Layout, Length, Point, Rectangle, Row, Text,
-    VerticalAlignment, Widget,
+    Align, Clipboard, Element, Hasher, HorizontalAlignment, Layout, Length,
+    Point, Rectangle, Row, Text, VerticalAlignment, Widget,
 };
 
 /// A box that can be checked.
@@ -32,7 +37,8 @@ pub struct Checkbox<Message, Renderer: self::Renderer + text::Renderer> {
     width: Length,
     size: u16,
     spacing: u16,
-    text_size: u16,
+    text_size: Option<u16>,
+    font: Renderer::Font,
     style: Renderer::Style,
 }
 
@@ -47,8 +53,6 @@ impl<Message, Renderer: self::Renderer + text::Renderer>
     ///   * a function that will be called when the [`Checkbox`] is toggled. It
     ///     will receive the new state of the [`Checkbox`] and must produce a
     ///     `Message`.
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn new<F>(is_checked: bool, label: impl Into<String>, f: F) -> Self
     where
         F: 'static + Fn(bool) -> Message,
@@ -60,46 +64,45 @@ impl<Message, Renderer: self::Renderer + text::Renderer>
             width: Length::Shrink,
             size: <Renderer as self::Renderer>::DEFAULT_SIZE,
             spacing: Renderer::DEFAULT_SPACING,
-            text_size: <Renderer as text::Renderer>::DEFAULT_SIZE,
+            text_size: None,
+            font: Renderer::Font::default(),
             style: Renderer::Style::default(),
         }
     }
 
     /// Sets the size of the [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn size(mut self, size: u16) -> Self {
         self.size = size;
         self
     }
 
     /// Sets the width of the [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn width(mut self, width: Length) -> Self {
         self.width = width;
         self
     }
 
     /// Sets the spacing between the [`Checkbox`] and the text.
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn spacing(mut self, spacing: u16) -> Self {
         self.spacing = spacing;
         self
     }
 
     /// Sets the text size of the [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn text_size(mut self, text_size: u16) -> Self {
-        self.text_size = text_size;
+        self.text_size = Some(text_size);
+        self
+    }
+
+    /// Sets the [`Font`] of the text of the [`Checkbox`].
+    ///
+    /// [`Font`]: crate::widget::text::Renderer::Font
+    pub fn font(mut self, font: Renderer::Font) -> Self {
+        self.font = font;
         self
     }
 
     /// Sets the style of the [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     pub fn style(mut self, style: impl Into<Renderer::Style>) -> Self {
         self.style = style.into();
         self
@@ -135,8 +138,9 @@ where
             )
             .push(
                 Text::new(&self.label)
+                    .font(self.font)
                     .width(self.width)
-                    .size(self.text_size),
+                    .size(self.text_size.unwrap_or(renderer.default_size())),
             )
             .layout(renderer, limits)
     }
@@ -149,17 +153,22 @@ where
         messages: &mut Vec<Message>,
         _renderer: &Renderer,
         _clipboard: Option<&dyn Clipboard>,
-    ) {
+    ) -> event::Status {
         match event {
-            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 let mouse_over = layout.bounds().contains(cursor_position);
 
                 if mouse_over {
                     messages.push((self.on_toggle)(!self.is_checked));
+
+                    return event::Status::Captured;
                 }
             }
             _ => {}
         }
+
+        event::Status::Ignored
     }
 
     fn draw(
@@ -168,6 +177,7 @@ where
         defaults: &Renderer::Defaults,
         layout: Layout<'_>,
         cursor_position: Point,
+        _viewport: &Rectangle,
     ) -> Renderer::Output {
         let bounds = layout.bounds();
         let mut children = layout.children();
@@ -181,8 +191,8 @@ where
             defaults,
             label_layout.bounds(),
             &self.label,
-            self.text_size,
-            Default::default(),
+            self.text_size.unwrap_or(renderer.default_size()),
+            self.font,
             None,
             HorizontalAlignment::Left,
             VerticalAlignment::Center,
@@ -213,20 +223,15 @@ where
 /// Your [renderer] will need to implement this trait before being
 /// able to use a [`Checkbox`] in your user interface.
 ///
-/// [`Checkbox`]: struct.Checkbox.html
-/// [renderer]: ../../renderer/index.html
+/// [renderer]: crate::Renderer
 pub trait Renderer: crate::Renderer {
     /// The style supported by this renderer.
     type Style: Default;
 
     /// The default size of a [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     const DEFAULT_SIZE: u16;
 
     /// The default spacing of a [`Checkbox`].
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     const DEFAULT_SPACING: u16;
 
     /// Draws a [`Checkbox`].
@@ -236,8 +241,6 @@ pub trait Renderer: crate::Renderer {
     ///   * whether the [`Checkbox`] is selected or not
     ///   * whether the mouse is over the [`Checkbox`] or not
     ///   * the drawn label of the [`Checkbox`]
-    ///
-    /// [`Checkbox`]: struct.Checkbox.html
     fn draw(
         &mut self,
         bounds: Rectangle,

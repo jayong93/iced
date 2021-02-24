@@ -9,7 +9,7 @@ use iced_graphics::{Primitive, Viewport};
 use iced_native::mouse;
 use iced_native::{Font, HorizontalAlignment, Size, VerticalAlignment};
 
-#[cfg(any(feature = "image", feature = "svg"))]
+#[cfg(any(feature = "image_rs", feature = "svg"))]
 use crate::image;
 
 /// A [`wgpu`] graphics backend for [`iced`].
@@ -22,14 +22,14 @@ pub struct Backend {
     text_pipeline: text::Pipeline,
     triangle_pipeline: triangle::Pipeline,
 
-    #[cfg(any(feature = "image", feature = "svg"))]
+    #[cfg(any(feature = "image_rs", feature = "svg"))]
     image_pipeline: image::Pipeline,
+
+    default_text_size: u16,
 }
 
 impl Backend {
     /// Creates a new [`Backend`].
-    ///
-    /// [`Backend`]: struct.Backend.html
     pub fn new(device: &wgpu::Device, settings: Settings) -> Self {
         let text_pipeline =
             text::Pipeline::new(device, settings.format, settings.default_font);
@@ -40,7 +40,7 @@ impl Backend {
             settings.antialiasing,
         );
 
-        #[cfg(any(feature = "image", feature = "svg"))]
+        #[cfg(any(feature = "image_rs", feature = "svg"))]
         let image_pipeline = image::Pipeline::new(device, settings.format);
 
         Self {
@@ -48,8 +48,10 @@ impl Backend {
             text_pipeline,
             triangle_pipeline,
 
-            #[cfg(any(feature = "image", feature = "svg"))]
+            #[cfg(any(feature = "image_rs", feature = "svg"))]
             image_pipeline,
+
+            default_text_size: settings.default_text_size,
         }
     }
 
@@ -60,6 +62,7 @@ impl Backend {
     pub fn draw<T: AsRef<str>>(
         &mut self,
         device: &wgpu::Device,
+        staging_belt: &mut wgpu::util::StagingBelt,
         encoder: &mut wgpu::CommandEncoder,
         frame: &wgpu::TextureView,
         viewport: &Viewport,
@@ -81,6 +84,7 @@ impl Backend {
                 scale_factor,
                 transformation,
                 &layer,
+                staging_belt,
                 encoder,
                 &frame,
                 target_size.width,
@@ -88,7 +92,7 @@ impl Backend {
             );
         }
 
-        #[cfg(any(feature = "image", feature = "svg"))]
+        #[cfg(any(feature = "image_rs", feature = "svg"))]
         self.image_pipeline.trim_cache();
 
         *mouse_interaction
@@ -100,6 +104,7 @@ impl Backend {
         scale_factor: f32,
         transformation: Transformation,
         layer: &Layer<'_>,
+        staging_belt: &mut wgpu::util::StagingBelt,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         target_width: u32,
@@ -110,6 +115,7 @@ impl Backend {
         if !layer.quads.is_empty() {
             self.quad_pipeline.draw(
                 device,
+                staging_belt,
                 encoder,
                 &layer.quads,
                 transformation,
@@ -125,6 +131,7 @@ impl Backend {
 
             self.triangle_pipeline.draw(
                 device,
+                staging_belt,
                 encoder,
                 target,
                 target_width,
@@ -135,7 +142,7 @@ impl Backend {
             );
         }
 
-        #[cfg(any(feature = "image", feature = "svg"))]
+        #[cfg(any(feature = "image_rs", feature = "svg"))]
         {
             if !layer.images.is_empty() {
                 let scaled = transformation
@@ -143,6 +150,7 @@ impl Backend {
 
                 self.image_pipeline.draw(
                     device,
+                    staging_belt,
                     encoder,
                     &layer.images,
                     scaled,
@@ -221,6 +229,7 @@ impl Backend {
 
             self.text_pipeline.draw_queued(
                 device,
+                staging_belt,
                 encoder,
                 target,
                 transformation,
@@ -244,6 +253,11 @@ impl iced_graphics::Backend for Backend {
 impl backend::Text for Backend {
     const ICON_FONT: Font = font::ICONS;
     const CHECKMARK_ICON: char = font::CHECKMARK_ICON;
+    const ARROW_DOWN_ICON: char = font::ARROW_DOWN_ICON;
+
+    fn default_size(&self) -> u16 {
+        self.default_text_size
+    }
 
     fn measure(
         &self,
@@ -256,7 +270,7 @@ impl backend::Text for Backend {
     }
 }
 
-#[cfg(feature = "image")]
+#[cfg(feature = "image_rs")]
 impl backend::Image for Backend {
     fn dimensions(&self, handle: &iced_native::image::Handle) -> (u32, u32) {
         self.image_pipeline.dimensions(handle)

@@ -2,18 +2,16 @@
 use crate::window;
 
 /// The settings of an application.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone)]
 pub struct Settings<Flags> {
     /// The window settings.
     ///
     /// They will be ignored on the Web.
-    ///
-    /// [`Window`]: struct.Window.html
     pub window: window::Settings,
 
     /// The data needed to initialize an [`Application`].
     ///
-    /// [`Application`]: ../trait.Application.html
+    /// [`Application`]: crate::Application
     pub flags: Flags,
 
     /// The bytes of the font that will be used by default.
@@ -21,6 +19,11 @@ pub struct Settings<Flags> {
     /// If `None` is provided, a default system font will be chosen.
     // TODO: Add `name` for web compatibility
     pub default_font: Option<&'static [u8]>,
+
+    /// The text size that will be used by default.
+    ///
+    /// The default value is 20.
+    pub default_text_size: u16,
 
     /// If set to true, the renderer will try to perform antialiasing for some
     /// primitives.
@@ -30,21 +33,37 @@ pub struct Settings<Flags> {
     ///
     /// By default, it is disabled.
     ///
-    /// [`Canvas`]: ../widget/canvas/struct.Canvas.html
+    /// [`Canvas`]: crate::widget::Canvas
     pub antialiasing: bool,
 }
 
 impl<Flags> Settings<Flags> {
-    /// Initialize application settings using the given data.
+    /// Initialize [`Application`] settings using the given data.
     ///
-    /// [`Application`]: ../trait.Application.html
+    /// [`Application`]: crate::Application
     pub fn with_flags(flags: Flags) -> Self {
+        let default_settings = Settings::<()>::default();
+
         Self {
             flags,
-            // not using ..Default::default() struct update syntax since it is more permissive to
-            // allow initializing with flags without trait bound on Default
+            antialiasing: default_settings.antialiasing,
+            default_font: default_settings.default_font,
+            default_text_size: default_settings.default_text_size,
+            window: default_settings.window,
+        }
+    }
+}
+
+impl<Flags> Default for Settings<Flags>
+where
+    Flags: Default,
+{
+    fn default() -> Self {
+        Self {
+            flags: Default::default(),
             antialiasing: Default::default(),
             default_font: Default::default(),
+            default_text_size: 20,
             window: Default::default(),
         }
     }
@@ -54,12 +73,7 @@ impl<Flags> Settings<Flags> {
 impl<Flags> From<Settings<Flags>> for iced_winit::Settings<Flags> {
     fn from(settings: Settings<Flags>) -> iced_winit::Settings<Flags> {
         iced_winit::Settings {
-            window: iced_winit::settings::Window {
-                size: settings.window.size,
-                resizable: settings.window.resizable,
-                decorations: settings.window.decorations,
-                platform_specific: Default::default(),
-            },
+            window: settings.window.into(),
             flags: settings.flags,
         }
     }

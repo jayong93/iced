@@ -5,9 +5,11 @@ use controls::Controls;
 use scene::Scene;
 
 use iced_wgpu::{wgpu, Backend, Renderer, Settings, Viewport};
-use iced_winit::{futures, program, winit, Debug, Size};
+use iced_winit::{conversion, futures, program, winit, Debug, Size};
 
+use futures::task::SpawnExt;
 use winit::{
+    dpi::PhysicalPosition,
     event::{Event, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
 };
@@ -24,29 +26,33 @@ pub fn main() {
         Size::new(physical_size.width, physical_size.height),
         window.scale_factor(),
     );
+    let mut cursor_position = PhysicalPosition::new(-1.0, -1.0);
     let mut modifiers = ModifiersState::default();
 
     // Initialize wgpu
-    let surface = wgpu::Surface::create(&window);
-    let (mut device, queue) = futures::executor::block_on(async {
-        let adapter = wgpu::Adapter::request(
-            &wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::Default,
-                compatible_surface: Some(&surface),
-            },
-            wgpu::BackendBit::PRIMARY,
-        )
-        .await
-        .expect("Request adapter");
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+    let surface = unsafe { instance.create_surface(&window) };
 
-        adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                extensions: wgpu::Extensions {
-                    anisotropic_filtering: false,
-                },
-                limits: wgpu::Limits::default(),
+    let (mut device, queue) = futures::executor::block_on(async {
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: Some(&surface),
             })
             .await
+            .expect("Request adapter");
+
+        adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: None,
+                    features: wgpu::Features::empty(),
+                    limits: wgpu::Limits::default(),
+                },
+                None,
+            )
+            .await
+            .expect("Request device")
     });
 
     let format = wgpu::TextureFormat::Bgra8UnormSrgb;
@@ -57,7 +63,7 @@ pub fn main() {
         device.create_swap_chain(
             &surface,
             &wgpu::SwapChainDescriptor {
-                usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
                 format: format,
                 width: size.width,
                 height: size.height,
@@ -66,6 +72,10 @@ pub fn main() {
         )
     };
     let mut resized = false;
+
+    // Initialize staging belt and local pool
+    let mut staging_belt = wgpu::util::StagingBelt::new(5 * 1024);
+    let mut local_pool = futures::executor::LocalPool::new();
 
     // Initialize scene and GUI controls
     let scene = Scene::new(&mut device);
@@ -79,6 +89,7 @@ pub fn main() {
     let mut state = program::State::new(
         controls,
         viewport.logical_size(),
+        conversion::cursor_position(cursor_position, viewport.scale_factor()),
         &mut renderer,
         &mut debug,
     );
@@ -91,6 +102,9 @@ pub fn main() {
         match event {
             Event::WindowEvent { event, .. } => {
                 match event {
+                    WindowEvent::CursorMoved { position, .. } => {
+                        cursor_position = position;
+                    }
                     WindowEvent::ModifiersChanged(new_modifiers) => {
                         modifiers = new_modifiers;
                     }
@@ -105,7 +119,6 @@ pub fn main() {
                     WindowEvent::CloseRequested => {
                         *control_flow = ControlFlow::Exit;
                     }
-
                     _ => {}
                 }
 
@@ -123,8 +136,12 @@ pub fn main() {
                 if !state.is_queue_empty() {
                     // We update iced
                     let _ = state.update(
-                        None,
                         viewport.logical_size(),
+                        conversion::cursor_position(
+                            cursor_position,
+                            viewport.scale_factor(),
+                        ),
+                        None,
                         &mut renderer,
                         &mut debug,
                     );
@@ -140,7 +157,7 @@ pub fn main() {
                     swap_chain = device.create_swap_chain(
                         &surface,
                         &wgpu::SwapChainDescriptor {
-                            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
                             format: format,
                             width: size.width,
                             height: size.height,
@@ -151,7 +168,7 @@ pub fn main() {
                     resized = false;
                 }
 
-                let frame = swap_chain.get_next_texture().expect("Next frame");
+                let frame = swap_chain.get_current_frame().expect("Next frame");
 
                 let mut encoder = device.create_command_encoder(
                     &wgpu::CommandEncoderDescriptor { label: None },
@@ -162,7 +179,7 @@ pub fn main() {
                 {
                     // We clear the frame
                     let mut render_pass = scene.clear(
-                        &frame.view,
+                        &frame.output.view,
                         &mut encoder,
                         program.background_color(),
                     );
@@ -174,22 +191,32 @@ pub fn main() {
                 // And then iced on top
                 let mouse_interaction = renderer.backend_mut().draw(
                     &mut device,
+                    &mut staging_belt,
                     &mut encoder,
-                    &frame.view,
+                    &frame.output.view,
                     &viewport,
                     state.primitive(),
                     &debug.overlay(),
                 );
 
                 // Then we submit the work
-                queue.submit(&[encoder.finish()]);
+                staging_belt.finish();
+                queue.submit(Some(encoder.finish()));
 
-                // And update the mouse cursor
+                // Update the mouse cursor
                 window.set_cursor_icon(
                     iced_winit::conversion::mouse_interaction(
                         mouse_interaction,
                     ),
                 );
+
+                // And recall staging buffers
+                local_pool
+                    .spawner()
+                    .spawn(staging_belt.recall())
+                    .expect("Recall staging buffers");
+
+                local_pool.run_until_stalled();
             }
             _ => {}
         }

@@ -26,8 +26,6 @@ where
     Event: 'static + Send + Clone,
 {
     /// Creates a new empty [`Tracker`].
-    ///
-    /// [`Tracker`]: struct.Tracker.html
     pub fn new() -> Self {
         Self {
             subscriptions: HashMap::new(),
@@ -52,9 +50,7 @@ where
     /// It returns a list of futures that need to be spawned to materialize
     /// the [`Tracker`] changes.
     ///
-    /// [`Tracker`]: struct.Tracker.html
-    /// [`Subscription`]: struct.Subscription.html
-    /// [`Recipe`]: trait.Recipe.html
+    /// [`Recipe`]: crate::subscription::Recipe
     pub fn update<Message, Receiver>(
         &mut self,
         subscription: Subscription<Hasher, Event, Message>,
@@ -132,14 +128,14 @@ where
     /// This method publishes the given event to all the subscription streams
     /// currently open.
     ///
-    /// [`Recipe::stream`]: trait.Recipe.html#tymethod.stream
+    /// [`Recipe::stream`]: crate::subscription::Recipe::stream
     pub fn broadcast(&mut self, event: Event) {
         self.subscriptions
             .values_mut()
             .filter_map(|connection| connection.listener.as_mut())
             .for_each(|listener| {
                 if let Err(error) = listener.try_send(event.clone()) {
-                    log::error!(
+                    log::warn!(
                         "Error sending event to subscription: {:?}",
                         error
                     );

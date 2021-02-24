@@ -19,20 +19,22 @@ impl Scene {
         background_color: Color,
     ) -> wgpu::RenderPass<'a> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
             color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                 attachment: target,
                 resolve_target: None,
-                load_op: wgpu::LoadOp::Clear,
-                store_op: wgpu::StoreOp::Store,
-                clear_color: {
-                    let [r, g, b, a] = background_color.into_linear();
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear({
+                        let [r, g, b, a] = background_color.into_linear();
 
-                    wgpu::Color {
-                        r: r as f64,
-                        g: g as f64,
-                        b: b as f64,
-                        a: a as f64,
-                    }
+                        wgpu::Color {
+                            r: r as f64,
+                            g: g as f64,
+                            b: b as f64,
+                            a: a as f64,
+                        }
+                    }),
+                    store: true,
                 },
             }],
             depth_stencil_attachment: None,
@@ -46,55 +48,50 @@ impl Scene {
 }
 
 fn build_pipeline(device: &wgpu::Device) -> wgpu::RenderPipeline {
-    let vs = include_bytes!("shader/vert.spv");
-    let fs = include_bytes!("shader/frag.spv");
+    let vs_module =
+        device.create_shader_module(&wgpu::include_spirv!("shader/vert.spv"));
 
-    let vs_module = device.create_shader_module(
-        &wgpu::read_spirv(std::io::Cursor::new(&vs[..])).unwrap(),
-    );
-
-    let fs_module = device.create_shader_module(
-        &wgpu::read_spirv(std::io::Cursor::new(&fs[..])).unwrap(),
-    );
+    let fs_module =
+        device.create_shader_module(&wgpu::include_spirv!("shader/frag.spv"));
 
     let pipeline_layout =
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
+            push_constant_ranges: &[],
             bind_group_layouts: &[],
         });
 
     let pipeline =
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            layout: &pipeline_layout,
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
+                buffers: &[],
             },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            fragment: Some(wgpu::FragmentState {
                 module: &fs_module,
                 entry_point: "main",
+                targets: &[wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    color_blend: wgpu::BlendState::REPLACE,
+                    alpha_blend: wgpu::BlendState::REPLACE,
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
             }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::None,
-                depth_bias: 0,
-                depth_bias_slope_scale: 0.0,
-                depth_bias_clamp: 0.0,
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: None,
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[],
+                ..Default::default()
             },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
         });
 
     pipeline

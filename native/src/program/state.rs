@@ -1,12 +1,10 @@
 use crate::{
-    Cache, Clipboard, Command, Debug, Event, Program, Renderer, Size,
+    Cache, Clipboard, Command, Debug, Event, Point, Program, Renderer, Size,
     UserInterface,
 };
 
 /// The execution state of a [`Program`]. It leverages caching, event
 /// processing, and rendering primitive storage.
-///
-/// [`Program`]: trait.Program.html
 #[allow(missing_debug_implementations)]
 pub struct State<P>
 where
@@ -25,16 +23,14 @@ where
 {
     /// Creates a new [`State`] with the provided [`Program`], initializing its
     /// primitive with the given logical bounds and renderer.
-    ///
-    /// [`State`]: struct.State.html
-    /// [`Program`]: trait.Program.html
     pub fn new(
         mut program: P,
         bounds: Size,
+        cursor_position: Point,
         renderer: &mut P::Renderer,
         debug: &mut Debug,
     ) -> Self {
-        let user_interface = build_user_interface(
+        let mut user_interface = build_user_interface(
             &mut program,
             Cache::default(),
             renderer,
@@ -43,7 +39,7 @@ where
         );
 
         debug.draw_started();
-        let primitive = user_interface.draw(renderer);
+        let primitive = user_interface.draw(renderer, cursor_position);
         debug.draw_finished();
 
         let cache = Some(user_interface.into_cache());
@@ -58,39 +54,30 @@ where
     }
 
     /// Returns a reference to the [`Program`] of the [`State`].
-    ///
-    /// [`Program`]: trait.Program.html
-    /// [`State`]: struct.State.html
     pub fn program(&self) -> &P {
         &self.program
     }
 
     /// Returns a reference to the current rendering primitive of the [`State`].
-    ///
-    /// [`State`]: struct.State.html
     pub fn primitive(&self) -> &<P::Renderer as Renderer>::Output {
         &self.primitive
     }
 
     /// Queues an event in the [`State`] for processing during an [`update`].
     ///
-    /// [`State`]: struct.State.html
-    /// [`update`]: #method.update
+    /// [`update`]: Self::update
     pub fn queue_event(&mut self, event: Event) {
         self.queued_events.push(event);
     }
 
     /// Queues a message in the [`State`] for processing during an [`update`].
     ///
-    /// [`State`]: struct.State.html
-    /// [`update`]: #method.update
+    /// [`update`]: Self::update
     pub fn queue_message(&mut self, message: P::Message) {
         self.queued_messages.push(message);
     }
 
     /// Returns whether the event queue of the [`State`] is empty or not.
-    ///
-    /// [`State`]: struct.State.html
     pub fn is_queue_empty(&self) -> bool {
         self.queued_events.is_empty() && self.queued_messages.is_empty()
     }
@@ -100,12 +87,11 @@ where
     ///
     /// Returns the [`Command`] obtained from [`Program`] after updating it,
     /// only if an update was necessary.
-    ///
-    /// [`Program`]: trait.Program.html
     pub fn update(
         &mut self,
-        clipboard: Option<&dyn Clipboard>,
         bounds: Size,
+        cursor_position: Point,
+        clipboard: Option<&dyn Clipboard>,
         renderer: &mut P::Renderer,
         debug: &mut Debug,
     ) -> Option<Command<P::Message>> {
@@ -118,17 +104,23 @@ where
         );
 
         debug.event_processing_started();
-        let mut messages = user_interface.update(
-            self.queued_events.drain(..),
+        let mut messages = Vec::new();
+
+        let _ = user_interface.update(
+            &self.queued_events,
+            cursor_position,
             clipboard,
             renderer,
+            &mut messages,
         );
+
         messages.extend(self.queued_messages.drain(..));
+        self.queued_events.clear();
         debug.event_processing_finished();
 
         if messages.is_empty() {
             debug.draw_started();
-            self.primitive = user_interface.draw(renderer);
+            self.primitive = user_interface.draw(renderer, cursor_position);
             debug.draw_finished();
 
             self.cache = Some(user_interface.into_cache());
@@ -150,7 +142,7 @@ where
                     command
                 }));
 
-            let user_interface = build_user_interface(
+            let mut user_interface = build_user_interface(
                 &mut self.program,
                 temp_cache,
                 renderer,
@@ -159,7 +151,7 @@ where
             );
 
             debug.draw_started();
-            self.primitive = user_interface.draw(renderer);
+            self.primitive = user_interface.draw(renderer, cursor_position);
             debug.draw_finished();
 
             self.cache = Some(user_interface.into_cache());

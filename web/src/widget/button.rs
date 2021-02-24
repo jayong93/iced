@@ -1,9 +1,6 @@
 //! Allow your users to perform actions by pressing a button.
 //!
 //! A [`Button`] has some local [`State`].
-//!
-//! [`Button`]: struct.Button.html
-//! [`State`]: struct.State.html
 use crate::{css, Background, Bus, Css, Element, Length, Widget};
 
 pub use iced_style::button::{Style, StyleSheet};
@@ -28,8 +25,10 @@ pub struct Button<'a, Message> {
     content: Element<'a, Message>,
     on_press: Option<Message>,
     width: Length,
+    #[allow(dead_code)]
     height: Length,
     min_width: u32,
+    #[allow(dead_code)]
     min_height: u32,
     padding: u16,
     style: Box<dyn StyleSheet>,
@@ -38,9 +37,6 @@ pub struct Button<'a, Message> {
 impl<'a, Message> Button<'a, Message> {
     /// Creates a new [`Button`] with some local [`State`] and the given
     /// content.
-    ///
-    /// [`Button`]: struct.Button.html
-    /// [`State`]: struct.State.html
     pub fn new<E>(_state: &'a mut State, content: E) -> Self
     where
         E: Into<Element<'a, Message>>,
@@ -58,56 +54,42 @@ impl<'a, Message> Button<'a, Message> {
     }
 
     /// Sets the width of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn width(mut self, width: Length) -> Self {
         self.width = width;
         self
     }
 
     /// Sets the height of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn height(mut self, height: Length) -> Self {
         self.height = height;
         self
     }
 
     /// Sets the minimum width of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn min_width(mut self, min_width: u32) -> Self {
         self.min_width = min_width;
         self
     }
 
     /// Sets the minimum height of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn min_height(mut self, min_height: u32) -> Self {
         self.min_height = min_height;
         self
     }
 
     /// Sets the padding of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn padding(mut self, padding: u16) -> Self {
         self.padding = padding;
         self
     }
 
     /// Sets the style of the [`Button`].
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn style(mut self, style: impl Into<Box<dyn StyleSheet>>) -> Self {
         self.style = style.into();
         self
     }
 
     /// Sets the message that will be produced when the [`Button`] is pressed.
-    ///
-    /// [`Button`]: struct.Button.html
     pub fn on_press(mut self, msg: Message) -> Self {
         self.on_press = Some(msg);
         self
@@ -115,15 +97,11 @@ impl<'a, Message> Button<'a, Message> {
 }
 
 /// The local state of a [`Button`].
-///
-/// [`Button`]: struct.Button.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct State;
 
 impl State {
     /// Creates a new [`State`].
-    ///
-    /// [`State`]: struct.State.html
     pub fn new() -> State {
         State::default()
     }
@@ -154,16 +132,20 @@ where
             },
         };
 
+        let class = {
+            use dodrio::bumpalo::collections::String;
+
+            String::from_str_in(&padding_class, bump).into_bump_str()
+        };
+
         let mut node = button(bump)
-            .attr(
-                "class",
-                bumpalo::format!(in bump, "{}", padding_class).into_bump_str(),
-            )
+            .attr("class", class)
             .attr(
                 "style",
                 bumpalo::format!(
                     in bump,
-                    "background: {}; border-radius: {}px; width:{}; min-width: {}; color: {}",
+                    "background: {}; border-radius: {}px; width:{}; \
+                    min-width: {}; color: {}",
                     background,
                     style.border_radius,
                     css::length(self.width),

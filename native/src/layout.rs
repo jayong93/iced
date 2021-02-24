@@ -12,8 +12,6 @@ pub use node::Node;
 use crate::{Point, Rectangle, Vector};
 
 /// The bounds of a [`Node`] and its children, using absolute coordinates.
-///
-/// [`Node`]: struct.Node.html
 #[derive(Debug, Clone, Copy)]
 pub struct Layout<'a> {
     position: Point,
@@ -21,11 +19,14 @@ pub struct Layout<'a> {
 }
 
 impl<'a> Layout<'a> {
-    pub(crate) fn new(node: &'a Node) -> Self {
+    /// Creates a new [`Layout`] for the given [`Node`] at the origin.
+    pub fn new(node: &'a Node) -> Self {
         Self::with_offset(Vector::new(0.0, 0.0), node)
     }
 
-    pub(crate) fn with_offset(offset: Vector, node: &'a Node) -> Self {
+    /// Creates a new [`Layout`] for the given [`Node`] with the provided offset
+    /// from the origin.
+    pub fn with_offset(offset: Vector, node: &'a Node) -> Self {
         let bounds = node.bounds();
 
         Self {
@@ -34,14 +35,15 @@ impl<'a> Layout<'a> {
         }
     }
 
-    /// Gets the bounds of the [`Layout`].
+    /// Returns the position of the [`Layout`].
+    pub fn position(&self) -> Point {
+        self.position
+    }
+
+    /// Returns the bounds of the [`Layout`].
     ///
     /// The returned [`Rectangle`] describes the position and size of a
     /// [`Node`].
-    ///
-    /// [`Layout`]: struct.Layout.html
-    /// [`Rectangle`]: struct.Rectangle.html
-    /// [`Node`]: struct.Node.html
     pub fn bounds(&self) -> Rectangle {
         let bounds = self.node.bounds();
 
@@ -54,10 +56,7 @@ impl<'a> Layout<'a> {
     }
 
     /// Returns an iterator over the [`Layout`] of the children of a [`Node`].
-    ///
-    /// [`Layout`]: struct.Layout.html
-    /// [`Node`]: struct.Node.html
-    pub fn children(&'a self) -> impl Iterator<Item = Layout<'a>> {
+    pub fn children(self) -> impl Iterator<Item = Layout<'a>> {
         self.node.children().iter().map(move |node| {
             Layout::with_offset(
                 Vector::new(self.position.x, self.position.y),
