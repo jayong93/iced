@@ -14,7 +14,7 @@ categories = ["gui"]
 debug = ["iced_native/debug"]
 
 [dependencies]
-winit = "0.24"
+winit = {git="https://github.com/jayong93/winit", branch="other_mouse_buttons"}
 window_clipboard = "0.1"
 log = "0.4"
 thiserror = "1.0"
