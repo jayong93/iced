@@ -380,6 +380,19 @@ async fn run_instance<A, E, C>(
                         ));
                         events.push(event);
                     }
+                    DeviceEvent::Key(input) => {
+                        let event = Event::Raw(device::Event::KeyInput(
+                            keyboard::Event::KeyReleased {
+                                key_code: conversion::key_code(
+                                    input.virtual_keycode.unwrap(),
+                                ),
+                                modifiers: conversion::modifiers(
+                                    input.modifiers,
+                                ),
+                            },
+                        ));
+                        events.push(event);
+                    }
                     DeviceEvent::Button { button, state } => {
                         let event = if state == ElementState::Pressed {
                             device::Event::ButtonPressed(button)
