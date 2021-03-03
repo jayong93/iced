@@ -2,6 +2,7 @@
 mod state;
 
 pub use state::State;
+use winit::event::ElementState;
 
 use crate::conversion;
 use crate::mouse;
@@ -378,6 +379,14 @@ async fn run_instance<A, E, C>(
                             },
                         ));
                         events.push(event);
+                    }
+                    DeviceEvent::Button { button, state } => {
+                        let event = if state == ElementState::Pressed {
+                            device::Event::ButtonPressed(button)
+                        } else {
+                            device::Event::ButtonReleased(button)
+                        };
+                        events.push(Event::Raw(event));
                     }
                     _ => {}
                 }
