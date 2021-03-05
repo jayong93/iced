@@ -1,6 +1,6 @@
 //! Test
 
-use crate::{keyboard, mouse};
+use crate::mouse;
 
 /// A raw device event
 #[derive(PartialEq, Debug, Clone)]
@@ -13,6 +13,8 @@ pub enum Event {
     ButtonPressed(u32),
     /// Some button released
     ButtonReleased(u32),
-    /// Some keyboard key pressed or released
-    KeyInput(keyboard::Event),
+    /// Some keyboard key pressed
+    KeyPressed(u32),
+    /// Some keyboard key released
+    KeyReleased(u32),
 }
