@@ -368,30 +368,30 @@ async fn run_instance<A, E, C>(
                         if input.state
                             == winit::event::ElementState::Pressed =>
                     {
-                        let event = Event::Raw(device::Event::KeyInput(
-                            keyboard::Event::KeyPressed {
-                                key_code: conversion::key_code(
-                                    input.virtual_keycode.unwrap(),
-                                ),
-                                modifiers: conversion::modifiers(
-                                    input.modifiers,
-                                ),
-                            },
-                        ));
-                        events.push(event);
+                        if let Some(key_code) = input.virtual_keycode {
+                            let event = Event::Raw(device::Event::KeyInput(
+                                keyboard::Event::KeyPressed {
+                                    key_code: conversion::key_code(key_code),
+                                    modifiers: conversion::modifiers(
+                                        input.modifiers,
+                                    ),
+                                },
+                            ));
+                            events.push(event);
+                        }
                     }
                     DeviceEvent::Key(input) => {
-                        let event = Event::Raw(device::Event::KeyInput(
-                            keyboard::Event::KeyReleased {
-                                key_code: conversion::key_code(
-                                    input.virtual_keycode.unwrap(),
-                                ),
-                                modifiers: conversion::modifiers(
-                                    input.modifiers,
-                                ),
-                            },
-                        ));
-                        events.push(event);
+                        if let Some(key_code) = input.virtual_keycode {
+                            let event = Event::Raw(device::Event::KeyInput(
+                                keyboard::Event::KeyReleased {
+                                    key_code: conversion::key_code(key_code),
+                                    modifiers: conversion::modifiers(
+                                        input.modifiers,
+                                    ),
+                                },
+                            ));
+                            events.push(event);
+                        }
                     }
                     DeviceEvent::Button { button, state } => {
                         let event = if state == ElementState::Pressed {
